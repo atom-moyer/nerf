@@ -1,6 +1,7 @@
 # NeRF
 A Numpy Implementation of the NeRF Algoritm for Global and Internal Molecular Coordinate Conversion
 
+### Citation
 Parsons J, Holmes JB, Rojas JM, Tsai J, Strauss CE. Practical conversion from torsion space to Cartesian space for in silico protein synthesis. J Comput Chem. 2005;26(10):1063-1068. doi:10.1002/jcc.20237
 
 ### Installation
