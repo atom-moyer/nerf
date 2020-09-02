@@ -37,6 +37,7 @@ XYZ = np.array([
 ])
 
 # Custom dependencies with branch
+# Default assumes all atoms are sequential
 # PrevAtom1, PrevAtom2, PrevAtom3
 DEP = np.array([
     [0, 0, 0],
