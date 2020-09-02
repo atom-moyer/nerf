@@ -8,20 +8,6 @@ A Numpy Implementation of the NeRF Algoritm for Global and Internal Molecular Co
 ```python
 import numpy as np
 
-# Z-matrix for the molecule: CCCCCC(C)CC
-# BondLength, BondAngle (Deg/Rad), BondTorsion (Deg/Rad)
-DOF = np.array([
-    [0.000,   0.000,    0.000],
-    [1.524,   0.000,    0.000],
-    [1.527, 111.974,    0.000],
-    [1.528, 111.660, -178.932],
-    [1.535, 114.360, -170.687],
-    [1.530, 109.309,  169.305],
-    [1.532, 111.280,  123.249],
-    [1.529, 113.910,  173.894],
-    [1.524, 111.425, -171.369]
-])
-
 # Global coordinates for the molecule: CCCCCC(C)CC
 # X, Y, Z
 XYZ = np.array([
@@ -36,8 +22,21 @@ XYZ = np.array([
     [ 3.977,  6.096, -1.843]
 ])
 
+# Internal coordinates for the molecule: CCCCCC(C)CC
+# BondLength, BondAngle (Deg/Rad), BondTorsion (Deg/Rad)
+DOF = np.array([
+    [0.000,   0.000,    0.000],
+    [1.524,   0.000,    0.000],
+    [1.527, 111.974,    0.000],
+    [1.528, 111.660, -178.932],
+    [1.535, 114.360, -170.687],
+    [1.530, 109.309,  169.305],
+    [1.532, 111.280,  123.249],
+    [1.529, 113.910,  173.894],
+    [1.524, 111.425, -171.369]
+])
+
 # Custom dependencies with branch
-# Default assumes all atoms are sequential
 # PrevAtom1, PrevAtom2, PrevAtom3
 DEP = np.array([
     [0, 0, 0],
@@ -50,6 +49,8 @@ DEP = np.array([
     [6, 4, 3],
     [7, 6, 4],
 ])
+
+# Note: Default assumes all atoms are sequential
 ```
 
 ### Example
