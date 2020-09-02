@@ -68,6 +68,8 @@ assert np.all(np.absolute(dof - DOF) < 0.001)
 ```python
 from nerf import NeRF, iNeRF, perturb_dofs
 
+repeats = 1000000 # ~8 seconds on my computer for both calculations
+
 DOFS = perturb_dofs(np.repeat(DOF[np.newaxis], repeats, axis=0))
 
 xyzs = NeRF(DOFS, dependency=DEP)
