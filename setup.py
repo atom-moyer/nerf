@@ -13,7 +13,7 @@ setup(
     version = __version__,
     author = 'Adam Moyer',
     author_email = 'atom.moyer@gmail.com',
-    description = 'A Numpy Implementation of the NeRF Algoritm for Molecular Global and Internal Coordinate Conversion',
+    description = 'A Numpy Implementation of the NeRF Algoritm for Global and Internal Molecular Coordinate Conversion',
     packages = ['nerf'],
     package_dir={'nerf' : 'nerf'},
     package_data={},

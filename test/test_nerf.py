@@ -63,8 +63,8 @@ def test_nerf():
     xyz = NeRF(DOF, dependency=DEP)
     dof = iNeRF(xyz, dependency=DEP)
 
-    assert np.all(np.absolute(xyz - ORIGIN_XYZ) < 0.01)
-    assert np.all(np.absolute(dof - DOF) < 0.01)
+    assert np.all(np.absolute(xyz - ORIGIN_XYZ) < 0.001)
+    assert np.all(np.absolute(dof - DOF) < 0.001)
 
 def test_nerf_vectorized():
     DOFS = perturb_dofs(np.repeat(DOF[np.newaxis], repeats, axis=0))
@@ -72,5 +72,5 @@ def test_nerf_vectorized():
     xyzs = NeRF(DOFS, dependency=DEP)
     dofs = iNeRF(xyzs, dependency=DEP)
 
-    assert np.all(np.absolute(np.mean(xyzs, axis=0) - ORIGIN_XYZ) < 0.01)
-    assert np.all(np.absolute(np.mean(dofs, axis=0) - DOF) < 0.01)
+    assert np.all(np.absolute(np.mean(xyzs, axis=0) - ORIGIN_XYZ) < 0.001)
+    assert np.all(np.absolute(np.mean(dofs, axis=0) - DOF) < 0.001)
