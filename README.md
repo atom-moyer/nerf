@@ -8,7 +8,7 @@ A Numpy Implementation of the NeRF Algoritm for Global and Internal Molecular Co
 ```python
 import numpy as np
 
-# Global coordinates for the molecule: CCCCCC(C)CC
+# Global coordinates for the molecule: CCCCC(C)CCC
 # X, Y, Z
 XYZ = np.array([
     [ 0.000,  0.000,  0.000],
@@ -22,7 +22,7 @@ XYZ = np.array([
     [ 3.977,  6.096, -1.843]
 ])
 
-# Internal coordinates for the molecule: CCCCCC(C)CC
+# Internal coordinates for the molecule: CCCCC(C)CCC
 # BondLength, BondAngle (Deg/Rad), BondTorsion (Deg/Rad)
 DOF = np.array([
     [0.000,   0.000,    0.000],
