@@ -1,9 +1,6 @@
 # NeRF
 A Numpy Implementation of the NeRF Algoritm for Global and Internal Molecular Coordinate Conversion
 
-### Citation
-Parsons J, Holmes JB, Rojas JM, Tsai J, Strauss CE. Practical conversion from torsion space to Cartesian space for in silico protein synthesis. J Comput Chem. 2005;26(10):1063-1068. doi:10.1002/jcc.20237
-
 ### Installation
 `pip install pynerf`
 
@@ -77,3 +74,6 @@ dofs = iNeRF(xyzs, dependency=DEP)
 assert np.all(np.absolute(np.mean(xyzs, axis=0) - XYZ) < 0.001)
 assert np.all(np.absolute(np.mean(dofs, axis=0) - DOF) < 0.001)
 ```
+
+### Citation
+Parsons J, Holmes JB, Rojas JM, Tsai J, Strauss CE. Practical conversion from torsion space to Cartesian space for in silico protein synthesis. J Comput Chem. 2005;26(10):1063-1068. doi:10.1002/jcc.20237
