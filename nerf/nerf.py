@@ -32,23 +32,21 @@ def sph2cart(spherical, degrees):
 
 
 def NeRF(dofs, dependency=None, degrees=True):
-    xyzs = np.empty_like(dofs)
+    if dependency is not None:
+        assert dofs.shape[-2:] == dependency.shape
+        assert np.all(dependency[np.triu_indices(3, k=-1)] == 0)
+
+    xyzs = np.zeros_like(dofs)
 
     locals = sph2cart(dofs, degrees)
 
     for i in range(dofs.shape[-2]):
         if i == 0:
-            xyzs[...,0,0] = 0.0
-            xyzs[...,0,1] = 0.0
-            xyzs[...,0,2] = 0.0
+            xyzs[...,0,:] = locals[...,0,:]
         elif i == 1:
-            xyzs[...,1,0] = dofs[...,1,0]
-            xyzs[...,1,1] = 0.0
-            xyzs[...,1,2] = 0.0
+            xyzs[...,1,:] = -locals[...,1,:]
         elif i == 2:
-            xyzs[...,2,0] = dofs[...,2,0] * np.cos(np.pi - np.radians(dofs[...,2,1])) + dofs[...,1,0]
-            xyzs[...,2,1] = dofs[...,2,0] * np.sin(np.pi - np.radians(dofs[...,2,1]))
-            xyzs[...,2,2] = 0.0
+            xyzs[...,2,:] = -locals[...,1,:] + locals[...,2,:]
         else:
             if dependency is None:
                 a = xyzs[...,i-3,:]
@@ -73,7 +71,11 @@ def NeRF(dofs, dependency=None, degrees=True):
 
 
 def iNeRF(xyzs, dependency=None, degrees=True):
-    dofs = np.empty_like(xyzs)
+    if dependency is not None:
+        assert xyzs.shape[-2:] == dependency.shape
+        assert np.all(dependency[np.triu_indices(3, k=-1)] == 0)
+
+    dofs = np.zeros_like(xyzs)
 
     for i in range(xyzs.shape[-2]):
         if i == 0:
@@ -81,16 +83,25 @@ def iNeRF(xyzs, dependency=None, degrees=True):
             dofs[...,0,[1]] = 0.0
             dofs[...,0,[2]] = 0.0
         elif i == 1:
-            a = xyzs[...,0,:]
-            b = xyzs[...,1,:]
+            if dependency is None:
+                a = xyzs[...,i-1,:]
+                b = xyzs[...,i,:]
+            else:
+                a = xyzs[...,dependency[i,0],:]
+                b = xyzs[...,i,:]
 
             dofs[...,1,[0]] = norm(b - a)
             dofs[...,1,[1]] = 0.0
             dofs[...,1,[2]] = 0.0
         elif i == 2:
-            a = xyzs[...,0,:]
-            b = xyzs[...,1,:]
-            c = xyzs[...,2,:]
+            if dependency is None:
+                a = xyzs[...,i-2,:]
+                b = xyzs[...,i-1,:]
+                c = xyzs[...,i,:]
+            else:
+                a = xyzs[...,dependency[i,1],:]
+                b = xyzs[...,dependency[i,0],:]
+                c = xyzs[...,i,:]
 
             ab = normalize(a - b)
             bc = normalize(b - c)
