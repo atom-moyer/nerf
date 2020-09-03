@@ -32,9 +32,13 @@ def sph2cart(spherical, degrees):
 
 
 def NeRF(dofs, dependency=None, degrees=True):
-    if dependency is not None:
-        assert dofs.shape[-2:] == dependency.shape
-        assert np.all(dependency[np.triu_indices(3, k=-1)] == 0)
+    """
+    dofs - [...,M,3]
+    dependency - [M,3]
+    mapping - bool
+
+    xyzs - [...,M,3]
+    """
 
     xyzs = np.zeros_like(dofs)
 
@@ -42,11 +46,26 @@ def NeRF(dofs, dependency=None, degrees=True):
 
     for i in range(dofs.shape[-2]):
         if i == 0:
-            xyzs[...,0,:] = locals[...,0,:]
+            xyzs[...,i,:] = 0.0
+            continue
         elif i == 1:
-            xyzs[...,1,:] = -locals[...,1,:]
+            if dependency is None:
+                a = np.array([0.0, 1.0, 0.0])
+                b = np.array([1.0, 0.0, 0.0])
+                c = xyzs[...,i-1,:]
+            else:
+                a = np.array([0.0, 1.0, 0.0])
+                b = np.array([1.0, 0.0, 0.0])
+                c = xyzs[...,dependency[i,0],:]
         elif i == 2:
-            xyzs[...,2,:] = -locals[...,1,:] + locals[...,2,:]
+            if dependency is None:
+                a = np.array([0.0, 1.0, 0.0])
+                b = xyzs[...,i-2,:]
+                c = xyzs[...,i-1,:]
+            else:
+                a = np.array([0.0, 1.0, 0.0])
+                b = xyzs[...,dependency[i,1],:]
+                c = xyzs[...,dependency[i,0],:]
         else:
             if dependency is None:
                 a = xyzs[...,i-3,:]
@@ -57,86 +76,78 @@ def NeRF(dofs, dependency=None, degrees=True):
                 b = xyzs[...,dependency[i,1],:]
                 c = xyzs[...,dependency[i,0],:]
 
-            ab = normalize(b - a)
-            bc = normalize(c - b)
+        ab = normalize(b - a)
+        bc = normalize(c - b)
 
-            n = normalize(np.cross(ab, bc))
-            n_x_bc = normalize(np.cross(n, bc))
+        n = normalize(np.cross(ab, bc))
+        n_x_bc = normalize(np.cross(n, bc))
 
-            M = np.stack([bc, n_x_bc, n], axis=-1)
+        M = np.stack([bc, n_x_bc, n], axis=-1)
 
-            xyzs[...,i,:] = np.squeeze(M @ np.swapaxes(locals[...,[i],:], -1, -2)) + c
+        globals = np.squeeze(M @ np.swapaxes(locals[...,[i],:], -1, -2))
+
+        xyzs[...,i,:] = globals + c
 
     return xyzs
 
 
 def iNeRF(xyzs, dependency=None, degrees=True):
-    if dependency is not None:
-        assert xyzs.shape[-2:] == dependency.shape
-        assert np.all(dependency[np.triu_indices(3, k=-1)] == 0)
+    """
+    xyzs - [...,M,3]
+    dependency - [M,3]
+    mapping - bool
+
+    dofs - [...,M,3]
+    """
 
     dofs = np.zeros_like(xyzs)
 
     for i in range(xyzs.shape[-2]):
         if i == 0:
-            dofs[...,0,[0]] = 0.0
-            dofs[...,0,[1]] = 0.0
-            dofs[...,0,[2]] = 0.0
+            dofs[...,i,:] = 0.0
+            continue
         elif i == 1:
             if dependency is None:
-                a = xyzs[...,i-1,:]
-                b = xyzs[...,i,:]
+                a = np.array([0.0, 1.0, 0.0])
+                b = np.array([1.0, 0.0, 0.0])
+                c = xyzs[...,i-1,:]
             else:
-                a = xyzs[...,dependency[i,0],:]
-                b = xyzs[...,i,:]
-
-            dofs[...,1,[0]] = norm(b - a)
-            dofs[...,1,[1]] = 0.0
-            dofs[...,1,[2]] = 0.0
+                a = np.array([0.0, 1.0, 0.0])
+                b = np.array([1.0, 0.0, 0.0])
+                c = xyzs[...,dependency[i,0],:]
         elif i == 2:
             if dependency is None:
-                a = xyzs[...,i-2,:]
-                b = xyzs[...,i-1,:]
-                c = xyzs[...,i,:]
+                a = np.array([0.0, 1.0, 0.0])
+                b = xyzs[...,i-2,:]
+                c = xyzs[...,i-1,:]
             else:
-                a = xyzs[...,dependency[i,1],:]
-                b = xyzs[...,dependency[i,0],:]
-                c = xyzs[...,i,:]
-
-            ab = normalize(a - b)
-            bc = normalize(b - c)
-
-            x = np.clip(dot(ab, bc), -1, 1)
-
-            dofs[...,2,[0]] = norm(b - c)
-            dofs[...,2,[1]] = np.pi - np.arccos(x)
-            dofs[...,2,[2]] = 0.0
+                a = np.array([0.0, 1.0, 0.0])
+                b = xyzs[...,dependency[i,1],:]
+                c = xyzs[...,dependency[i,0],:]
         else:
             if dependency is None:
                 a = xyzs[...,i-3,:]
                 b = xyzs[...,i-2,:]
                 c = xyzs[...,i-1,:]
-                d = xyzs[...,i,:]
             else:
                 a = xyzs[...,dependency[i,2],:]
                 b = xyzs[...,dependency[i,1],:]
                 c = xyzs[...,dependency[i,0],:]
-                d = xyzs[...,i,:]
 
-            ba = normalize(b - a)
-            bc = normalize(b - c)
-            cd = normalize(c - d)
+        d = xyzs[...,i,:]
 
-            v = ba - dot(ba, bc) * bc
-            w = cd - dot(cd, bc) * bc
+        ba = normalize(b - a)
+        bc = normalize(b - c)
+        cd = normalize(c - d)
 
-            x = np.clip(dot(bc, cd), -1, 1)
-            y = np.clip(dot(v, w), -1, 1)
-            z = np.clip(dot(np.cross(bc, v), w), -1, 1)
+        v = ba - dot(ba, bc) * bc
+        w = cd - dot(cd, bc) * bc
 
-            dofs[...,i,[0]] = norm(d - c)
-            dofs[...,i,[1]] = np.pi - np.arccos(x)
-            dofs[...,i,[2]] = -np.arctan2(z, y)
+        x = np.clip(dot(bc, cd), -1, 1)
+        y = np.clip(dot(v, w), -1, 1)
+        z = np.clip(dot(np.cross(bc, v), w), -1, 1)
+
+        dofs[...,i,:] = np.squeeze(np.stack([norm(d - c), np.pi - np.arccos(x), -np.arctan2(z, y)], axis=-1))
 
     if degrees:
         dofs[...,:,[1,2]] = np.degrees(dofs[...,:,[1,2]])
