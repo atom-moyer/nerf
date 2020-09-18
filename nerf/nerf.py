@@ -1,13 +1,8 @@
 import numpy as np
 
 
-def norm(a):
-    return np.linalg.norm(a, axis=-1, keepdims=True)
-
-
 def normalize(a):
-    a /= norm(a)
-    return a
+    return a / np.linalg.norm(a, axis=-1, keepdims=True)
 
 
 def dot(a, b):
@@ -31,11 +26,10 @@ def sph2cart(spherical, degrees):
     return np.stack([R_cos_T, R_sin_T*cos_P, R_sin_T*sin_P], axis=-1)
 
 
-def NeRF(dofs, dependency=None, degrees=True):
+def NeRF(dofs, deps=None, degrees=True):
     """
     dofs - [...,M,3]
-    dependency - [M,3]
-    mapping - bool
+    deps - [M,3]
 
     xyzs - [...,M,3]
     """
@@ -49,32 +43,32 @@ def NeRF(dofs, dependency=None, degrees=True):
             xyzs[...,i,:] = 0.0
             continue
         elif i == 1:
-            if dependency is None:
+            if deps is None:
                 a = np.array([0.0, 1.0, 0.0])
                 b = np.array([1.0, 0.0, 0.0])
                 c = xyzs[...,i-1,:]
             else:
                 a = np.array([0.0, 1.0, 0.0])
                 b = np.array([1.0, 0.0, 0.0])
-                c = xyzs[...,dependency[i,0],:]
+                c = xyzs[...,deps[i,0],:]
         elif i == 2:
-            if dependency is None:
+            if deps is None:
                 a = np.array([0.0, 1.0, 0.0])
                 b = xyzs[...,i-2,:]
                 c = xyzs[...,i-1,:]
             else:
                 a = np.array([0.0, 1.0, 0.0])
-                b = xyzs[...,dependency[i,1],:]
-                c = xyzs[...,dependency[i,0],:]
+                b = xyzs[...,deps[i,1],:]
+                c = xyzs[...,deps[i,0],:]
         else:
-            if dependency is None:
+            if deps is None:
                 a = xyzs[...,i-3,:]
                 b = xyzs[...,i-2,:]
                 c = xyzs[...,i-1,:]
             else:
-                a = xyzs[...,dependency[i,2],:]
-                b = xyzs[...,dependency[i,1],:]
-                c = xyzs[...,dependency[i,0],:]
+                a = xyzs[...,deps[i,2],:]
+                b = xyzs[...,deps[i,1],:]
+                c = xyzs[...,deps[i,0],:]
 
         ab = normalize(b - a)
         bc = normalize(c - b)
@@ -91,11 +85,10 @@ def NeRF(dofs, dependency=None, degrees=True):
     return xyzs
 
 
-def iNeRF(xyzs, dependency=None, degrees=True):
+def iNeRF(xyzs, deps=None, degrees=True):
     """
     xyzs - [...,M,3]
-    dependency - [M,3]
-    mapping - bool
+    deps - [M,3]
 
     dofs - [...,M,3]
     """
@@ -104,50 +97,65 @@ def iNeRF(xyzs, dependency=None, degrees=True):
 
     for i in range(xyzs.shape[-2]):
         if i == 0:
-            dofs[...,i,:] = 0.0
-            continue
+            dofs[...,i,0] = 0.0
+            dofs[...,i,1] = 0.0
+            dofs[...,i,2] = 0.0
         elif i == 1:
-            if dependency is None:
-                a = np.array([0.0, 1.0, 0.0])
-                b = np.array([1.0, 0.0, 0.0])
+            if deps is None:
                 c = xyzs[...,i-1,:]
             else:
-                a = np.array([0.0, 1.0, 0.0])
-                b = np.array([1.0, 0.0, 0.0])
-                c = xyzs[...,dependency[i,0],:]
+                c = xyzs[...,deps[i,0],:]
+
+            d = xyzs[...,i,:]
+
+            dofs[...,i,0] = np.squeeze(np.linalg.norm(d-c, axis=-1, keepdims=True))
+            dofs[...,i,1] = 0.0
+            dofs[...,i,2] = 0.0
+
         elif i == 2:
-            if dependency is None:
-                a = np.array([0.0, 1.0, 0.0])
+            if deps is None:
                 b = xyzs[...,i-2,:]
                 c = xyzs[...,i-1,:]
             else:
-                a = np.array([0.0, 1.0, 0.0])
-                b = xyzs[...,dependency[i,1],:]
-                c = xyzs[...,dependency[i,0],:]
+                b = xyzs[...,deps[i,1],:]
+                c = xyzs[...,deps[i,0],:]
+
+            d = xyzs[...,i,:]
+
+            bc = normalize(b - c)
+            cd = normalize(c - d)
+
+            x = np.clip(dot(bc, cd), -1.0, 1.0)
+
+            dofs[...,i,0] = np.squeeze(np.linalg.norm(d-c, axis=-1, keepdims=True))
+            dofs[...,i,1] = np.squeeze(np.pi - np.arccos(x))
+            dofs[...,i,2] = 0.0
         else:
-            if dependency is None:
+            if deps is None:
                 a = xyzs[...,i-3,:]
                 b = xyzs[...,i-2,:]
                 c = xyzs[...,i-1,:]
             else:
-                a = xyzs[...,dependency[i,2],:]
-                b = xyzs[...,dependency[i,1],:]
-                c = xyzs[...,dependency[i,0],:]
+                a = xyzs[...,deps[i,2],:]
+                b = xyzs[...,deps[i,1],:]
+                c = xyzs[...,deps[i,0],:]
 
-        d = xyzs[...,i,:]
+            d = xyzs[...,i,:]
 
-        ba = normalize(b - a)
-        bc = normalize(b - c)
-        cd = normalize(c - d)
+            ba = normalize(b - a)
+            bc = normalize(b - c)
+            cd = normalize(c - d)
 
-        v = ba - dot(ba, bc) * bc
-        w = cd - dot(cd, bc) * bc
+            v = ba - dot(ba, bc) * bc
+            w = cd - dot(cd, bc) * bc
 
-        x = np.clip(dot(bc, cd), -1, 1)
-        y = np.clip(dot(v, w), -1, 1)
-        z = np.clip(dot(np.cross(bc, v), w), -1, 1)
+            x = np.clip(dot(bc, cd), -1.0, 1.0)
+            y = np.clip(dot(v, w), -1.0, 1.0)
+            z = np.clip(dot(np.cross(bc, v), w), -1.0, 1.0)
 
-        dofs[...,i,:] = np.squeeze(np.stack([norm(d - c), np.pi - np.arccos(x), -np.arctan2(z, y)], axis=-1))
+            dofs[...,i,0] = np.squeeze(np.linalg.norm(d-c, axis=-1, keepdims=True))
+            dofs[...,i,1] = np.squeeze(np.pi - np.arccos(x))
+            dofs[...,i,2] = np.squeeze(-np.arctan2(z, y))
 
     if degrees:
         dofs[...,:,[1,2]] = np.degrees(dofs[...,:,[1,2]])
@@ -157,16 +165,40 @@ def iNeRF(xyzs, dependency=None, degrees=True):
 
 def perturb_dofs(dofs, bond_length_factor=0.01, bond_angle_factor=0.1, bond_torsion_factor=1.0):
     """
-    dofs - [N,M,3]
-    xyzs - [N,M,3]
-    mapping - [2,<=M]
-    """
+    dofs - [...,M,3]
+    bond_length_factor - [...,M] broadcast-able
+    bond_angle_factor - [...,M] broadcast-able
+    bond_torsion_factor - [...,M] broadcast-able
+    NOTE: Perturbs by (gaussian normal distribution * factor)
 
-    dofs[...,:,0] += np.random.uniform(-1, 1, dofs.shape[:-1]) * bond_length_factor
-    dofs[...,:,1] += np.random.uniform(-1, 1, dofs.shape[:-1]) * bond_angle_factor
-    dofs[...,:,2] += np.random.uniform(-1, 1, dofs.shape[:-1]) * bond_torsion_factor
+    dofs - [...,M,3] (copy)
+    """
+    dofs = np.copy(dofs)
+
+    dofs[...,:,0] += np.random.normal(0, 1, dofs.shape[:-1]) * bond_length_factor
+    dofs[...,:,1] += np.random.normal(0, 1, dofs.shape[:-1]) * bond_angle_factor
+    dofs[...,:,2] += np.random.normal(0, 1, dofs.shape[:-1]) * bond_torsion_factor
 
     return np.tril(dofs, k=-1)
+
+
+def build_deps(bonds):
+    """
+    bonds - [M,M] (symmetric)
+
+    deps - [M,3]
+    """
+    assert np.array_equal(bonds, np.transpose(bonds))
+
+    parents = np.array([0] + [int(np.argwhere(bond)[-1]) for i, bond in enumerate(np.tril(bonds, k=-1)[1:])])
+
+    deps = np.array([[parent, parents[parent], parents[parents[parent]]] for parent in parents])
+
+    for i, dep in enumerate(deps):
+        if (dep == deps[:i]).all(axis=1).any():
+            dep[2] = int(np.argwhere((dep == deps[:i]).all(axis=1))[0])
+
+    return deps
 
 
 # ### Fast Hbond score
