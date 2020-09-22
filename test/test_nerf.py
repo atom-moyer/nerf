@@ -2,7 +2,7 @@ import numpy as np
 np.set_printoptions(formatter={'float': lambda x: "{0:0.3f}".format(x)})
 
 from nerf import NeRF, iNeRF, perturb_dofs, build_deps
-
+from align import align
 
 repeats = 100000
 
@@ -130,6 +130,14 @@ def test_nerf_vectorized():
     assert np.all(np.absolute(np.mean(xyzs_delta, axis=0)) < 0.05)
     assert np.all(np.absolute(np.mean(dofs_delta, axis=0)) < 0.05)
 
+
+def test_nerf_long():
+    PROTEIN_XYZ = np.loadtxt('test_protein.xyz', dtype=np.dtype('f8'))
+
+    dof = iNeRF(PROTEIN_XYZ)
+    xyz = NeRF(dof)
+
+    assert np.all(np.absolute(xyz - PROTEIN_XYZ) < 0.001)
 
 def test_build_deps():
     assert np.array_equal(build_deps(BONDS), DEP)
