@@ -26,6 +26,13 @@ XYZ = np.array([
 ])
 
 
+ABC = np.array([
+    [-3.85918113,  1.96727702, -0.90964251],
+    [-3.18010648,  0.73561076, -1.50023432],
+    [-2.59821482, -0.0276012 , -0.32047649],
+])
+
+
 ORIGIN_XYZ = np.array([
  [ 0.000,  0.000,  0.000],
  [ 1.525,  0.000,  0.000],
@@ -110,6 +117,14 @@ def test_nerf():
     assert np.all(np.absolute(dof - DOF) < 0.001)
 
 
+def test_nerf_abc():
+    xyz = NeRF(DOF, abcs=ABC, deps=DEP)
+    dof = iNeRF(xyz, deps=DEP)
+
+    assert np.all(np.absolute(xyz - XYZ) < 0.001)
+    assert np.all(np.absolute(dof - DOF) < 0.001)
+
+
 def test_nerf_vectorized():
     DOFS = perturb_dofs(
         np.repeat(DOF[np.newaxis], repeats, axis=0),
@@ -122,6 +137,27 @@ def test_nerf_vectorized():
     dofs = iNeRF(xyzs, deps=DEP)
 
     xyzs_delta = xyzs - ORIGIN_XYZ
+
+    dofs_delta = dofs - DOF
+    dofs_delta[np.where(dofs_delta > 180.0)] -= 360.0
+    dofs_delta[np.where(dofs_delta < -180.0)] += 360.0
+
+    assert np.all(np.absolute(np.mean(xyzs_delta, axis=0)) < 0.05)
+    assert np.all(np.absolute(np.mean(dofs_delta, axis=0)) < 0.05)
+
+
+def test_nerf_vectorized_abc():
+    DOFS = perturb_dofs(
+        np.repeat(DOF[np.newaxis], repeats, axis=0),
+        bond_length_factor=0.01 * np.ones(1),
+        bond_angle_factor=0.1 * np.ones(len(DOF)),
+        bond_torsion_factor=1.0 * np.ones((repeats,len(DOF)))
+    )
+
+    xyzs = NeRF(DOFS, abcs=ABC, deps=DEP)
+    dofs = iNeRF(xyzs, deps=DEP)
+
+    xyzs_delta = xyzs - XYZ
 
     dofs_delta = dofs - DOF
     dofs_delta[np.where(dofs_delta > 180.0)] -= 360.0

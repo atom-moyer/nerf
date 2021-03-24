@@ -26,9 +26,10 @@ def sph2cart(spherical, degrees):
     return np.stack([R_cos_T, R_sin_T*cos_P, R_sin_T*sin_P], axis=-1)
 
 
-def NeRF(dofs, deps=None, degrees=True):
+def NeRF(dofs, abcs=None, deps=None, degrees=True):
     """
     dofs - [...,M,3]
+    abcs - [...,3,3]
     deps - [M,3]
 
     xyzs - [...,M,3]
@@ -36,14 +37,18 @@ def NeRF(dofs, deps=None, degrees=True):
 
     xyzs = np.zeros_like(dofs)
 
+    if abcs is not None:
+        xyzs[...,:3,:] = abcs
+
     locals = sph2cart(dofs, degrees)
 
     for i in range(dofs.shape[-2]):
         if i == 0:
-            xyzs[...,i,:] = 0.0
             continue
         elif i == 1:
-            if deps is None:
+            if abcs is not None:
+                continue
+            elif deps is None:
                 a = np.array([0.0, 1.0, 0.0])
                 b = np.array([1.0, 0.0, 0.0])
                 c = xyzs[...,i-1,:]
@@ -52,12 +57,14 @@ def NeRF(dofs, deps=None, degrees=True):
                 b = np.array([1.0, 0.0, 0.0])
                 c = xyzs[...,deps[i,0],:]
         elif i == 2:
-            if deps is None:
-                a = np.array([0.0, 1.0, 0.0])
+            if abcs is not None:
+                continue
+            elif deps is None:
+                a = xyzs[...,i-2,:] + np.array([0.0, 1.0, 0.0])
                 b = xyzs[...,i-2,:]
                 c = xyzs[...,i-1,:]
             else:
-                a = np.array([0.0, 1.0, 0.0])
+                a = xyzs[...,deps[i,1],:] + np.array([0.0, 1.0, 0.0])
                 b = xyzs[...,deps[i,1],:]
                 c = xyzs[...,deps[i,0],:]
         else:
