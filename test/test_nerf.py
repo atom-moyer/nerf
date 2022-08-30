@@ -1,11 +1,18 @@
 import numpy as np
 np.set_printoptions(formatter={'float': lambda x: "{0:0.3f}".format(x)})
 
-from nerf import NeRF, iNeRF, perturb_dofs, build_deps
+from nerf import NeRF, iNeRF, perturb_dofs, build_deps, rotatable_deps
 from align import align
+
+import rdkit.Chem
+import rdkit.Chem.rdDistGeom
+import rdkit.Chem.rdmolfiles
+
 
 repeats = 100000
 
+
+SMILES = 'CCCCC(C)CCCc1ccccc1'
 
 XYZ = np.array([
     [-3.85918113,  1.96727702, -0.90964251],
@@ -71,7 +78,7 @@ DOF = np.array([
 ])
 
 
-DEP = np.array([
+DEPS = np.array([
     [ 0,  0,  0],
     [ 0,  0,  0],
     [ 1,  0,  0],
@@ -90,7 +97,7 @@ DEP = np.array([
 ])
 
 
-BONDS = [
+BONDS = np.array([
     [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     [1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     [0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -106,20 +113,20 @@ BONDS = [
     [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0],
     [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1],
     [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0],
-]
+])
 
 
 def test_nerf():
-    xyz = NeRF(DOF, deps=DEP)
-    dof = iNeRF(xyz, deps=DEP)
+    xyz = NeRF(DOF, deps=DEPS)
+    dof = iNeRF(xyz, deps=DEPS)
 
     assert np.all(np.absolute(xyz - ORIGIN_XYZ) < 0.001)
     assert np.all(np.absolute(dof - DOF) < 0.001)
 
 
 def test_nerf_abc():
-    xyz = NeRF(DOF, abcs=ABC, deps=DEP)
-    dof = iNeRF(xyz, deps=DEP)
+    xyz = NeRF(DOF, abcs=ABC, deps=DEPS)
+    dof = iNeRF(xyz, deps=DEPS)
 
     assert np.all(np.absolute(xyz - XYZ) < 0.001)
     assert np.all(np.absolute(dof - DOF) < 0.001)
@@ -133,8 +140,8 @@ def test_nerf_vectorized():
         bond_torsion_factor=1.0 * np.ones((repeats,len(DOF)))
     )
 
-    xyzs = NeRF(DOFS, deps=DEP)
-    dofs = iNeRF(xyzs, deps=DEP)
+    xyzs = NeRF(DOFS, deps=DEPS)
+    dofs = iNeRF(xyzs, deps=DEPS)
 
     xyzs_delta = xyzs - ORIGIN_XYZ
 
@@ -154,8 +161,8 @@ def test_nerf_vectorized_abc():
         bond_torsion_factor=1.0 * np.ones((repeats,len(DOF)))
     )
 
-    xyzs = NeRF(DOFS, abcs=ABC, deps=DEP)
-    dofs = iNeRF(xyzs, deps=DEP)
+    xyzs = NeRF(DOFS, abcs=ABC, deps=DEPS)
+    dofs = iNeRF(xyzs, deps=DEPS)
 
     xyzs_delta = xyzs - XYZ
 
@@ -175,5 +182,18 @@ def test_nerf_long():
 
     assert np.all(np.absolute(xyz - PROTEIN_XYZ) < 0.001)
 
+
 def test_build_deps():
-    assert np.array_equal(build_deps(BONDS), DEP)
+    assert np.array_equal(build_deps(BONDS, dump_png='test.png'), DEPS)
+
+
+def test_nerf_macrocycle():
+    MACROCYCLE_XYZ = np.loadtxt('test_macrocycle.xyz', dtype=np.dtype('f8'))
+
+    macrocycle = rdkit.Chem.AddHs(rdkit.Chem.MolFromSmiles('N1CC(=O)NCC(=O)NCC(=O)NCC(=O)NCC(=O)NCC1(=O)'))
+    deps = build_deps(rdkit.Chem.rdmolops.GetAdjacencyMatrix(macrocycle))
+
+    dof = iNeRF(MACROCYCLE_XYZ, deps=deps)
+    xyz = NeRF(dof, abcs=MACROCYCLE_XYZ[:3], deps=deps)
+
+    assert np.all(np.absolute(xyz - MACROCYCLE_XYZ) < 0.001)

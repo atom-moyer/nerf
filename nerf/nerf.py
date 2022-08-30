@@ -1,4 +1,9 @@
 import numpy as np
+import scipy as sp
+import networkx as nx
+import matplotlib.pyplot as plt
+
+import numba
 
 
 def normalize(a):
@@ -9,6 +14,7 @@ def dot(a, b):
     return np.sum(a*b, axis=-1, keepdims=True)
 
 
+# @numba.njit
 def sph2cart(spherical, degrees):
     if degrees:
         pi_spherical1 = np.pi - np.radians(spherical[...,:,1])
@@ -26,6 +32,7 @@ def sph2cart(spherical, degrees):
     return np.stack([R_cos_T, R_sin_T*cos_P, R_sin_T*sin_P], axis=-1)
 
 
+# @numba.njit
 def NeRF(dofs, abcs=None, deps=None, degrees=True):
     """
     dofs - [...,M,3]
@@ -92,6 +99,7 @@ def NeRF(dofs, abcs=None, deps=None, degrees=True):
     return xyzs
 
 
+# @numba.njit
 def iNeRF(xyzs, deps=None, degrees=True):
     """
     xyzs - [...,M,3]
@@ -170,7 +178,7 @@ def iNeRF(xyzs, deps=None, degrees=True):
     return dofs
 
 
-def perturb_dofs(dofs, bond_length_factor=0.01, bond_angle_factor=0.1, bond_torsion_factor=1.0):
+def perturb_dofs(dofs, bond_length_factor=0.01, bond_angle_factor=0.1, bond_torsion_factor=1.0, in_place=False):
     """
     dofs - [...,M,3]
     bond_length_factor - [...,M] broadcast-able
@@ -180,16 +188,49 @@ def perturb_dofs(dofs, bond_length_factor=0.01, bond_angle_factor=0.1, bond_tors
 
     dofs - [...,M,3] (copy)
     """
-    dofs = np.copy(dofs)
+    if not in_place:
+        dofs = np.copy(dofs)
 
-    dofs[...,:,0] += np.random.normal(0, 1, dofs.shape[:-1]) * bond_length_factor
-    dofs[...,:,1] += np.random.normal(0, 1, dofs.shape[:-1]) * bond_angle_factor
-    dofs[...,:,2] += np.random.normal(0, 1, dofs.shape[:-1]) * bond_torsion_factor
+    if bond_length_factor is not None:
+        dofs[...,:,0] += np.random.normal(0, 1, dofs.shape[:-1]) * bond_length_factor
+
+    if bond_angle_factor is not None:
+        dofs[...,:,1] += np.random.normal(0, 1, dofs.shape[:-1]) * bond_angle_factor
+
+    if bond_torsion_factor is not None:
+        dofs[...,:,2] += np.random.normal(0, 1, dofs.shape[:-1]) * bond_torsion_factor
 
     return np.tril(dofs, k=-1)
 
 
-def build_deps(bonds):
+def perturb_abcs(abcs, translation_factor=0.1, rotation_factor=3.0):
+    """
+    abcs - [...,3,3]
+    translation_factor - [...,1,3] broadcast-able
+    NOTE: Perturbs by (gaussian normal distribution * factor)
+
+    dofs - [...,M,3] (copy)
+    """
+    abcs = np.copy(abcs)
+
+    abcs[...,:,:] += np.random.normal(0, 1, (abcs.shape[0],1,3)) * translation_factor
+
+    coms = np.mean(abcs, axis=-2, keepdims=True)
+
+    rot_vecs = np.random.normal(0, 1, (abcs.shape[0],3))
+    rot_vecs /= np.linalg.norm(rot_vecs, axis=-1, keepdims=True)
+    rot_vecs *= np.radians(np.random.normal(0, 1, (abcs.shape[0],1)) * rotation_factor)
+
+    rot_mats = sp.spatial.transform.Rotation.from_rotvec(rot_vecs).as_dcm()
+
+    abcs -= coms
+    abcs = abcs @ rot_mats
+    abcs += coms
+
+    return abcs
+
+
+def build_deps(bonds, dump_png=None):
     """
     bonds - [M,M] (symmetric)
 
@@ -197,13 +238,56 @@ def build_deps(bonds):
     """
     assert np.array_equal(bonds, np.transpose(bonds))
 
-    parents = np.array([0] + [int(np.argwhere(bond)[-1]) for i, bond in enumerate(np.tril(bonds, k=-1)[1:])])
+    parents = np.array([np.argwhere(bond)[-1] if np.any(bond) else -9999 for bond in np.tril(bonds, k=-1)], dtype=np.int)
 
-    deps = np.array([[parent, parents[parent], parents[parents[parent]]] for parent in parents])
+    deps = []
+    for i in np.arange(len(bonds)):
+        # 1: Root Corrections
+        if i == 0:
+            par_i = 0
+            gp_i = 0
+            ggp_i = 0
+        elif i == 1:
+            par_i = 0
+            gp_i = 0
+            ggp_i = 0
+        elif i == 2:
+            par_i = 1
+            gp_i = 0
+            ggp_i = 0
+        else:
+            par_i = parents[i]
+            gp_i = -9999 if (par_i==-9999) else parents[par_i]
+            ggp_i = -9999 if (gp_i==-9999) else parents[gp_i]
 
+        # Index 0 Branch Correction
+        if (gp_i == -9999):
+            gp_i = 1
+            ggp_i = 2
+
+        # Index 1 Branch Correction
+        if (ggp_i == -9999):
+            if (par_i == 1):
+                ggp_i = 2
+            else:
+                ggp_i = 1
+
+        deps.append([par_i, gp_i, ggp_i])
+
+    # Clean
+    deps = np.tril(deps, k=-1)
+
+    # General Branch Correction
     for i, dep in enumerate(deps):
-        if (dep == deps[:i]).all(axis=1).any():
-            dep[2] = int(np.argwhere((dep == deps[:i]).all(axis=1))[0])
+        matches = np.all(dep == deps[:i], axis=1)
+
+        if np.any(matches):
+            dep[2] = np.argwhere(matches)[0]
+
+    if dump_png:
+        graph = nx.from_numpy_matrix(bonds)
+        nx.draw_spring(graph, with_labels=True)
+        plt.savefig(dump_png)
 
     return deps
 
